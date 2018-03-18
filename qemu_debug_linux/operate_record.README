@@ -1,0 +1,110 @@
+********************
+Chapter One
+
+内核编译
+********************
+step 1:
+	安装交叉编译工具
+	$ sudo apt-get install gcc-arm-linux-gnueabi
+step 2:
+	下载内核源码
+	进入内核根目录，配置环境变量
+	$ export ARCH=arm
+	$ export CROSS_COMPILE=arm-linux-gnueabi-
+step 3:
+	生成编译配置
+	$ make vexpress_defconfig
+	编译内核
+	$ make zImage
+	$ make modules
+	$ make dtbs
+
+********************
+Chapter Two
+
+根文件系统的制作
+********************
+step 1:
+	创建虚拟磁盘
+	$ dd if=/dev/zero of=vexpress.img bs=512 count=$((2*1024*100))
+step 2:
+	虚拟磁盘分区及配置
+	创建分区
+	$ fdisk vexpress.img
+	
+	挂载vexpress.img到/dev/loop0设备上
+	$ sudo losetup /dev/loop0 vexpress.img
+
+	使用partx命令让系统刷新系统的分区信息
+	$ sudo partx -u /dev/loop0
+
+	制作ext2格式的文件系统
+	$ sudo mkfs.ext2 /dev/loop0p1
+
+	建立一个rootfs目录用来作为挂载目录
+	$ mkdir rootfs
+
+	将生成的ext2格式的分区挂载到rootfs目录
+	$ sudo mount -o loop /dev/loop0p1 ./rootfs
+
+step 3:
+	编译Busybox
+
+	$ make menuconfig
+	设置相关配
+
+	Build Options  --->
+		[*] Build BusyBox as a static binary (no shared libs)
+		(arm-linux-gnueabi-) Cross Compiler prefix 
+	设置busybox安装路径
+	
+	编译　安装　busybox
+	$ make
+	$ make install
+
+step 4:
+	拷贝运行库到rootfs
+	$ sudo cp -arf /usr/arm-linux-gnueabi/lib ./rootfs/
+	$ sudo rm rootfs/lib/*.a
+	$ sudo arm-linux-gnueabi-strip rootfs/lib/*
+
+	创建必要目录
+	$ sudo mkdir -p rootfs/proc/
+	$ sudo mkdir -p rootfs/sys/
+	$ sudo mkdir -p rootfs/tmp/
+	$ sudo mkdir -p rootfs/root/
+	$ sudo mkdir -p rootfs/var/
+	$ sudo mkdir -p rootfs/mnt/
+	$ sudo mkdir -p rootfs/dev/
+
+	创建必要节点
+	$ sudo mknod rootfs/dev/tty1 c 4 1
+	$ sudo mknod rootfs/dev/tty2 c 4 2
+	$ sudo mknod rootfs/dev/tty3 c 4 3
+	$ sudo mknod rootfs/dev/tty4 c 4 4
+	$ sudo mknod rootfs/dev/console c 5 1
+	$ sudo mknod rootfs/dev/null c 1 3
+
+	制作必要etc文件
+
+step 5:
+	卸载虚拟磁盘文件
+	$ umount /dev/loop0p1
+	$ sudo losetup -d /dev/loop0
+
+
+********************
+Chapter Three
+
+运行调试
+********************
+setp 1:
+	找到三个文件
+	Linux kernel目录下 arch/arm/boot/dts/vexpress-v2p-ca9.dtb  文件
+	Linux kernel目录下 arch/arm/boot/zImage 文件
+	虚拟磁盘文件： vexpress.img
+step 2:
+	执行启动脚本
+	$ ./startup.sh
+
+	$ ps -A | grep qemu-system-arm | awk '{print $1}' | xargs sudo kill -9
